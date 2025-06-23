@@ -28,7 +28,7 @@ models_dir = os.path.join(
 
 
 def pre_check() -> bool:
-    download_directory_path = abs_dir
+    download_directory_path = models_dir
     conditional_download(
         download_directory_path,
         [
@@ -60,7 +60,7 @@ def get_face_swapper() -> Any:
 
     with THREAD_LOCK:
         if FACE_SWAPPER is None:
-            model_path = os.path.join(models_dir, "inswapper_128_fp16.onnx")
+            model_path = os.path.join(models_dir, "inswapper_128.onnx")
             FACE_SWAPPER = insightface.model_zoo.get_model(
                 model_path, providers=modules.globals.execution_providers
             )

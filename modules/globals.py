@@ -13,7 +13,9 @@ source_target_map = []
 simple_map = {}
 
 source_path = None
+source_path_list = None
 target_path = None
+target_path_list = None
 output_path = None
 frame_processors: List[str] = []
 keep_fps = True

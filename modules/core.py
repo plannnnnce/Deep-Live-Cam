@@ -1,5 +1,9 @@
 import os
 import sys
+import time
+import uuid
+import hashlib
+
 # single thread doubles cuda performance - needs to be set before torch import
 if any(arg.startswith('--execution-provider') for arg in sys.argv):
     os.environ['OMP_NUM_THREADS'] = '1'
@@ -14,6 +18,8 @@ import argparse
 import torch
 import onnxruntime
 import tensorflow
+import base64
+
 
 import modules.globals
 import modules.metadata
@@ -27,6 +33,10 @@ if 'ROCMExecutionProvider' in modules.globals.execution_providers:
 warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
 warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
 
+def get_md5(text: str) -> str:
+    """计算字符串的 MD5 哈希值"""
+    md5_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+    return md5_hash
 
 def parse_args() -> None:
     signal.signal(signal.SIGINT, lambda signal_number, frame: destroy())
@@ -152,7 +162,7 @@ def limit_resources() -> None:
             kernel32.SetProcessWorkingSetSize(-1, ctypes.c_size_t(memory), ctypes.c_size_t(memory))
         else:
             import resource
-            resource.setrlimit(resource.RLIMIT_DATA, (memory, memory))
+            # resource.setrlimit(resource.RLIMIT_DATA, (memory, memory))
 
 
 def release_resources() -> None:
@@ -174,6 +184,21 @@ def update_status(message: str, scope: str = 'DLC.CORE') -> None:
     print(f'[{scope}] {message}')
     if not modules.globals.headless:
         ui.update_status(message)
+
+def batch_start() -> None:
+
+    if modules.globals.source_path_list and modules.globals.target_path_list:
+        dir = os.path.dirname(modules.globals.output_path)
+        for tmp_target in modules.globals.target_path_list:
+            prefix = get_md5(tmp_target) + '_' + str(int(time.time()))
+            for i, tmp_source in enumerate(modules.globals.source_path_list):
+                modules.globals.source_path = tmp_source
+                modules.globals.target_path = tmp_target
+                modules.globals.output_path = dir + "/" + prefix + "_" + str(i) + ".png"
+                start()
+    else:
+        start()
+    return
 
 def start() -> None:
     for frame_processor in get_frame_processors_modules(modules.globals.frame_processors):
@@ -253,7 +278,7 @@ def run() -> None:
             return
     limit_resources()
     if modules.globals.headless:
-        start()
+        batch_start()
     else:
-        window = ui.init(start, destroy, modules.globals.lang)
+        window = ui.init(batch_start, destroy, modules.globals.lang)
         window.mainloop()

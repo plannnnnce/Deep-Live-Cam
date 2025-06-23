@@ -1,10 +1,11 @@
 import os
 import webbrowser
+import uuid
 import customtkinter as ctk
 from typing import Callable, Tuple
 import cv2
 from cv2_enumerate_cameras import enumerate_cameras  # Add this import
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageTk
 import time
 import json
 import modules.globals
@@ -62,6 +63,8 @@ DEFAULT_BUTTON_HEIGHT = 40
 
 RECENT_DIRECTORY_SOURCE = None
 RECENT_DIRECTORY_TARGET = None
+RECENT_DIRECTORY_FACE_GROUP = None
+RECENT_DIRECTORY_TARGET_GROUP = None
 RECENT_DIRECTORY_OUTPUT = None
 
 _ = None
@@ -75,6 +78,8 @@ popup_status_label_live = None
 source_label_dict = {}
 source_label_dict_live = {}
 target_label_dict_live = {}
+face_group_files_label = None
+targe_group_files_label = None
 
 img_ft, vid_ft = modules.globals.file_types
 
@@ -135,7 +140,7 @@ def load_switch_states():
 
 
 def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.CTk:
-    global source_label, target_label, status_label, show_fps_switch
+    global source_label, target_label, status_label, show_fps_switch, face_group_files_label, targe_group_files_label
 
     load_switch_states()
 
@@ -174,6 +179,24 @@ def create_root(start: Callable[[], None], destroy: Callable[[], None]) -> ctk.C
         command=lambda: select_target_path(),
     )
     select_target_button.place(relx=0.6, rely=0.4, relwidth=0.3, relheight=0.1)
+
+    # 第一组图片选择
+    label1 = ctk.CTkLabel(root, text="图片输入框 1:")
+    label1.pack(pady=10)
+    select_button1 = ctk.CTkButton(root, text="选择FACE GROUP", command=lambda: select_face_group())
+    select_button1.pack(pady=5)
+    face_group_files_label = ctk.CTkLabel(root, text="", wraplength=400, fg_color="gray", height=40)
+    face_group_files_label.pack(fill='x')
+
+    # 第二组图片选择
+    label2 = ctk.CTkLabel(root, text="图片输入框 2:")
+    label2.pack(pady=10)
+    select_button2 = ctk.CTkButton(root, text="选择TARGET GROUP", command=lambda: select_target_group())
+    select_button2.pack(pady=5)
+    targe_group_files_label = ctk.CTkLabel(root, text="", wraplength=400, fg_color="gray", height=40)
+    targe_group_files_label.pack(fill='x')
+
+
 
     keep_fps_value = ctk.BooleanVar(value=modules.globals.keep_fps)
     keep_fps_checkbox = ctk.CTkSwitch(
@@ -648,13 +671,13 @@ def select_target_path() -> None:
 
 def select_output_path(start: Callable[[], None]) -> None:
     global RECENT_DIRECTORY_OUTPUT, img_ft, vid_ft
-
-    if is_image(modules.globals.target_path):
+    output_filename = str(uuid.uuid4())
+    if is_image(modules.globals.target_path) or modules.globals.source_path_list:
         output_path = ctk.filedialog.asksaveasfilename(
             title=_("save image output file"),
             filetypes=[img_ft],
             defaultextension=".png",
-            initialfile="output.png",
+            initialfile=output_filename + (".png"),
             initialdir=RECENT_DIRECTORY_OUTPUT,
         )
     elif is_video(modules.globals.target_path):
@@ -662,7 +685,7 @@ def select_output_path(start: Callable[[], None]) -> None:
             title=_("save video output file"),
             filetypes=[vid_ft],
             defaultextension=".mp4",
-            initialfile="output.mp4",
+            initialfile=output_filename + ".mp4",
             initialdir=RECENT_DIRECTORY_OUTPUT,
         )
     else:
@@ -672,6 +695,69 @@ def select_output_path(start: Callable[[], None]) -> None:
         RECENT_DIRECTORY_OUTPUT = os.path.dirname(modules.globals.output_path)
         start()
 
+def select_face_group() -> None:
+    global RECENT_DIRECTORY_FACE_GROUP, img_ft, vid_ft
+    print("select_images1")
+    files = ctk.filedialog.askopenfilenames(
+        initialdir=RECENT_DIRECTORY_FACE_GROUP,
+        filetypes=[img_ft, vid_ft]
+    )
+    images = []
+    # 拼接图片（水平拼接）
+    total_width = 0
+    fixed_image_width = 40
+    # 打开多张图片
+    for file in files:
+        image = render_image_preview(file, (fixed_image_width, fixed_image_width))
+        total_width += fixed_image_width
+        images.append(image)
+        RECENT_DIRECTORY_FACE_GROUP = os.path.dirname(file)
+
+    # 创建一个新图片，尺寸为拼接后的尺寸
+    new_image = Image.new('RGB', (total_width, fixed_image_width))
+    for i, image in enumerate(images):
+        # 将多张图片粘贴到新图片中
+        new_image.paste(image._light_image, (i * fixed_image_width, 0))
+
+    # 转换为 PhotoImage 并显示
+    new_image_tk = ImageTk.PhotoImage(new_image)
+    face_group_files_label.configure(image=new_image_tk)
+    if files:
+        modules.globals.source_path_list = files
+    else:
+        modules.globals.source_path_list = None
+    print("\n".join(files))
+
+def select_target_group() -> None:
+    global RECENT_DIRECTORY_TARGET_GROUP, img_ft, vid_ft
+    files = ctk.filedialog.askopenfilenames(
+        initialdir=RECENT_DIRECTORY_TARGET_GROUP,
+        filetypes=[img_ft, vid_ft])
+    images = []
+    # 拼接图片（水平拼接）
+    total_width = 0
+    fixed_image_width = 40
+    # 打开多张图片
+    for file in files:
+        image = render_image_preview(file, (fixed_image_width, fixed_image_width))
+        total_width += fixed_image_width
+        images.append(image)
+        RECENT_DIRECTORY_TARGET_GROUP = os.path.dirname(file)
+
+    # 创建一个新图片，尺寸为拼接后的尺寸
+    new_image = Image.new('RGB', (total_width, fixed_image_width))
+    for i, image in enumerate(images):
+        # 将多张图片粘贴到新图片中
+        new_image.paste(image._light_image, (i * fixed_image_width, 0))
+
+    # 转换为 PhotoImage 并显示
+    new_image_tk = ImageTk.PhotoImage(new_image)
+    targe_group_files_label.configure(image=new_image_tk)
+    if files:
+        modules.globals.target_path_list = files
+    else:
+        modules.globals.target_path_list = None
+    print("\n".join(files))
 
 def check_and_ignore_nsfw(target, destroy: Callable = None) -> bool:
     """Check if the target is NSFW.
@@ -1204,3 +1290,5 @@ def update_webcam_target(
         else:
             update_pop_live_status("Face could not be detected in last upload!")
         return map
+
+
